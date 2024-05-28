@@ -42,8 +42,10 @@
  * @file
  * Definition of BaseCache functions.
  */
-
 #include "mem/cache/base.hh"
+
+#include <iomanip>
+#include <sstream>
 
 #include "base/compiler.hh"
 #include "base/logging.hh"
@@ -53,6 +55,7 @@
 #include "debug/CacheRepl.hh"
 #include "debug/CacheVerbose.hh"
 #include "debug/HWPrefetch.hh"
+#include "debug/Packet.hh"
 #include "mem/cache/compressors/base.hh"
 #include "mem/cache/mshr.hh"
 #include "mem/cache/prefetch/base.hh"
@@ -553,6 +556,16 @@ BaseCache::recvTimingResp(PacketPtr pkt)
     if (is_fill && !is_error) {
         DPRINTF(Cache, "Block for addr %#llx being updated in Cache\n",
                 pkt->getAddr());
+        DPRINTF(Packet, "Handling packet: ");
+        std::ostringstream oss;
+    // Append packet data to the stream
+        for (int i = 0; i < pkt->getSize(); ++i) {
+            oss << std::hex << std::setw(2) << std::setfill('0')
+                << static_cast<int>(pkt->getPtr<uint8_t>()[i]) << " ";
+        }
+    // Convert the stream to a string and print it
+        DPRINTF(Packet, "Handling packet: %s\n", oss.str().c_str());
+        DPRINTF(Packet, "end \n");
 
         const bool allocate = (writeAllocator && mshr->wasWholeLineWrite) ?
             writeAllocator->allocate() : mshr->allocOnFill();

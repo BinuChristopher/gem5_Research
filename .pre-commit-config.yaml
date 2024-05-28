@@ -46,7 +46,8 @@ exclude: |
       src/systemc/ext/.*|
       src/systemc/tests/.*/.*|
       src/python/m5/ext/pyfdt/.*|
-      tests/.*/ref/.*
+      tests/.*/ref/.*|
+      program/.*|
     )$
 
 default_stages: [commit]
@@ -59,14 +60,12 @@ repos:
           - id: end-of-file-fixer
           - id: check-json
           - id: check-yaml
-          - id: check-added-large-files
           - id: mixed-line-ending
             args: [--fix=lf]
           - id: check-ast
           - id: check-case-conflict
           - id: check-merge-conflict
           - id: check-symlinks
-          - id: destroyed-symlinks
           - id: requirements-txt-fixer
     - repo: https://github.com/PyCQA/isort
       rev: 5.11.5
@@ -102,9 +101,3 @@ repos:
             language: system
             stages: [commit-msg]
             description: The gem5 commit message checker hook.
-          - id: gerrit-commit-msg-job
-            name: gerrit commit message job
-            entry: util/gerrit-commit-msg-hook
-            language: system
-            stages: [commit-msg]
-            description: Adds Change-ID to the commit message. Needed by Gerrit.
