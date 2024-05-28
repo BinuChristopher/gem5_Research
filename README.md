@@ -97,3 +97,11 @@ or start discussions. To join the mailing list please visit
 We hope you enjoy using gem5. When appropriate we advise charing your
 contributions to the project. <https://www.gem5.org/contributing> can help you
 get started. Additional information can be found in the CONTRIBUTING.md file.
+
+##Tracking config removal to Gem5 source code in this forked repo
+ Removed - id: check-added-large-files -- couldn't install git-lfs>=2.2.1
+ Removed - id: destroyed-symlinks -- didn't know how to fix this, any help would be appreciated
+ Removed - id: gerrit-commit-msg-job -- Local version of git didn't support 'interpret-trailers' -- update git to version greater than 2.18.0 and revert this
+ 
+ 
+ 
