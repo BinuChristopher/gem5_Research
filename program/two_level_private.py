@@ -4,6 +4,7 @@ import m5
 from m5.objects import *
 from gem5.resources.resource import Resource
 
+
 parser = argparse.ArgumentParser(
     description="A simple system with 2-level cache."
 )
@@ -42,12 +43,12 @@ system.cpu = [X86TimingSimpleCPU() for i in range(num_cpus)]
 system.l1dcache = [L1DCache(options) for i in range(num_cpus)]
 system.l1icache = [L1ICache(options) for i in range(num_cpus)]
 
-system.l2bus = L2XBar()
+system.l2bus = [L2XBar() for i in range(num_cpus)]
+system.l2cache = [L2Cache(options) for i in range(num_cpus)]
 
-system.l2cache = L2Cache(options)
-system.l2cache.connectCPU(system.l2bus)
+# system.l2cache.connectCPUSideBus(system.l2bus)
 system.membus = SystemXBar()
-system.l2cache.connectMemSideBus(system.membus)
+#system.l2cache.connectMemSideBus(system.membus)
 
 system.system_port = system.membus.cpu_side_ports
 
@@ -72,8 +73,10 @@ for i in range(num_cpus):
 
     system.l1dcache[i].connectCPU(system.cpu[i])
     system.l1icache[i].connectCPU(system.cpu[i])
-    system.l1dcache[i].connectToMemSideBus(system.l2bus)
-    system.l1icache[i].connectToMemSideBus(system.l2bus)
+    system.l1dcache[i].connectToMemSideBus(system.l2bus[i])
+    system.l1icache[i].connectToMemSideBus(system.l2bus[i])
+    system.l2cache[i].connectMemSideBus(system.membus)
+    system.l2cache[i].connectCPU(system.l2bus[i])
 
     system.cpu[i].createInterruptController()
     system.cpu[i].interrupts[0].pio = system.membus.mem_side_ports

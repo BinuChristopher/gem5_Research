@@ -93,6 +93,7 @@ class ThreadContext;
 
 typedef std::shared_ptr<Request> RequestPtr;
 typedef uint16_t RequestorID;
+typedef uint8_t DataTypeID;
 
 class Request : public Extensible<Request>
 {
@@ -338,6 +339,15 @@ class Request : public Extensible<Request>
         SHARED                  = 0x00001000,
 
     };
+    /** Custom data type enum: creating for passing the datatype identifier
+    * in a request */
+    enum : DataTypeID
+    {
+        intDatatypeId = 0,
+        floatDatatypeId = 1,
+        unknownDatatypeId = 2,
+
+    };
 
     using LocalAccessor =
         std::function<Cycles(ThreadContext *tc, Packet *pkt)>;
@@ -470,6 +480,9 @@ class Request : public Extensible<Request>
     /** The cause for HTM transaction abort */
     HtmFailureFaultCause _htmAbortCause = HtmFailureFaultCause::INVALID;
 
+    /** custom variable for datatype identification in a request*/
+    DataTypeID _dataTypeId = unknownDatatypeId;
+
   public:
 
     /**
@@ -600,6 +613,14 @@ class Request : public Extensible<Request>
         privateFlags.set(VALID_PADDR);
     }
 
+    /** Set custom dataype identifier for request*/
+    void
+    setDataType(DataTypeID type) {
+        _dataTypeId = type;
+    }
+    DataTypeID getDataType() const {
+        return _dataTypeId;
+    }
     /**
      * Generate two requests as if this request had been split into two
      * pieces. The original request can't have been translated already.

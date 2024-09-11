@@ -61,7 +61,7 @@ class L2Cache(Cache):
             return
         self.size = options.l2_size
 
-    def connectCPUSideBus(self, bus):
+    def connectCPU(self, bus):
         self.cpu_side = bus.mem_side_ports
 
     def connectMemSideBus(self, bus):

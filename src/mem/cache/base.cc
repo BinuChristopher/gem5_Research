@@ -411,6 +411,9 @@ BaseCache::recvTimingReq(PacketPtr pkt)
     // the delay provided by the crossbar
     Tick forward_time = clockEdge(forwardLatency) + pkt->headerDelay;
 
+    DPRINTF(Packet, "%s has data type %#x\n",__func__,
+        pkt->req->getDataType());
+
     if (pkt->cmd == MemCmd::LockedRMWWriteReq) {
         // For LockedRMW accesses, we mark the block inaccessible after the
         // read (see below), to make sure no one gets in before the write.
@@ -554,18 +557,7 @@ BaseCache::recvTimingResp(PacketPtr pkt)
     CacheBlk *blk = tags->findBlock(pkt->getAddr(), pkt->isSecure());
 
     if (is_fill && !is_error) {
-        DPRINTF(Cache, "Block for addr %#llx being updated in Cache\n",
-                pkt->getAddr());
-        DPRINTF(Packet, "Handling packet: ");
-        std::ostringstream oss;
-    // Append packet data to the stream
-        for (int i = 0; i < pkt->getSize(); ++i) {
-            oss << std::hex << std::setw(2) << std::setfill('0')
-                << static_cast<int>(pkt->getPtr<uint8_t>()[i]) << " ";
-        }
-    // Convert the stream to a string and print it
-        DPRINTF(Packet, "Handling packet: %s\n", oss.str().c_str());
-        DPRINTF(Packet, "end \n");
+        DPRINTF(Cache, "Block addr %#llx Cache\n",pkt->getAddr());
 
         const bool allocate = (writeAllocator && mshr->wasWholeLineWrite) ?
             writeAllocator->allocate() : mshr->allocOnFill();
@@ -797,7 +789,34 @@ BaseCache::updateBlockData(CacheBlk *blk, const PacketPtr cpkt,
 
     // Actually perform the data update
     if (cpkt) {
+
         cpkt->writeDataToBlock(blk->data, blkSize);
+        int offset = cpkt->getOffset(blkSize);
+        DPRINTF(Packet, "blocksize %d and offset %d \n",blkSize,offset);
+
+    std::ostringstream blkStream;
+    for (int i = 0; i < blkSize; ++i) {
+        // Print each byte as a two-digit hexadecimal number
+
+        blkStream << std::hex << std::setw(2)
+                << std::setfill('0')
+                << static_cast<int>(blk->data[i]) << " ";
+    }
+
+        DPRINTF(Packet, "Handling block data: %s\n",blkStream.str().c_str());
+        DPRINTF(Packet, "---Access packet for address %#x \n",cpkt->getAddr());
+        DPRINTF(Packet, "%s for %s %s\n", __func__,
+        cpkt->print(), blk ? "hit " + blk->print() : "miss");
+
+        std::ostringstream oss;
+    // Append packet data to the stream
+        for (int i = 0; i < cpkt->getSize(); ++i) {
+            oss << std::hex << std::setw(2) << std::setfill('0')
+                << static_cast<int>(cpkt->getPtr<uint64_t>()[i]) << " ";
+        }
+    // Convert the stream to a string and print it
+        DPRINTF(Packet, "Handling packet: %s\n", oss.str().c_str());
+        DPRINTF(Packet, "end \n");
     }
 
     if (ppDataUpdate->hasListeners()) {
