@@ -76,7 +76,9 @@ def _get_cache_opts(level, options):
 
 
 def config_cache(options, system):
-    if options.external_memory_system and (options.caches or options.l2cache):
+    if options.external_memory_system and (
+        options.caches or options.l2cache or options.l3cache
+    ):
         print("External caches and internal caches are exclusive options.\n")
         sys.exit(1)
 
@@ -94,7 +96,7 @@ def config_cache(options, system):
             core.O3_ARM_v7a_DCache,
             core.O3_ARM_v7a_ICache,
             core.O3_ARM_v7aL2,
-            None,
+            core.O3_ARM_v7aWalkCache,
         )
     elif options.cpu_type == "HPI":
         try:
@@ -107,15 +109,24 @@ def config_cache(options, system):
             core.HPI_DCache,
             core.HPI_ICache,
             core.HPI_L2,
-            None,
+            core.HPI_WalkCache,
         )
+    # Since I'm only messing with X86, L3 is only implemented here.
     else:
-        dcache_class, icache_class, l2_cache_class, walk_cache_class = (
-            L1_DCache,
-            L1_ICache,
-            L2Cache,
-            None,
-        )
+        (
+            dcache_class,
+            icache_class,
+            l2_cache_class,
+            l3_cache_class,
+            walk_cache_class,
+        ) = (L1_DCache, L1_ICache, L2Cache, L3Cache, None)
+
+        if ObjectList.cpu_list.get_isa(options.cpu_type) in [
+            ISA.X86,
+            ISA.ARM,
+            ISA.RISCV,
+        ]:
+            walk_cache_class = PageTableWalkerCache
 
     # Set the cache line size of the system
     system.cache_line_size = options.cacheline_size
@@ -124,20 +135,55 @@ def config_cache(options, system):
     # minimal so that compute delays do not include memory access latencies.
     # Configure the compulsory L1 caches for the O3CPU, do not configure
     # any more caches.
-    if options.l2cache and options.elastic_trace_en:
+    if (options.l2cache or options.l3cache) and options.elastic_trace_en:
         fatal("When elastic trace is enabled, do not configure L2 caches.")
 
-    if options.l2cache:
+    if options.l3cache:
+        # system.l2 = l2_cache_class(clk_domain=system.cpu_clk_domain,
+        #                            size=options.l2_size,
+        #                            assoc=options.l2_assoc)
+        system.l3 = l3_cache_class(
+            clk_domain=system.cpu_clk_domain,
+            size=options.l3_size,
+            assoc=options.l3_assoc,
+        )
+
+        # system.tol2bus = L2XBar(clk_domain=system.cpu_clk_domain)
+        system.tol3bus = L3XBar(clk_domain=system.cpu_clk_domain)
+
+        # system.l2.cpu_side = system.tol2bus.master
+        # system.l2.mem_side = system.tol3bus.slave
+
+        system.l3.cpu_side = system.tol3bus.mem_side_ports
+        system.l3.mem_side = system.membus.cpu_side_ports
+
+    elif options.l2cache:
         # Provide a clock for the L2 and the L1-to-L2 bus here as they
         # are not connected using addTwoLevelCacheHierarchy. Use the
         # same clock as the CPUs.
         system.l2 = l2_cache_class(
-            clk_domain=system.cpu_clk_domain, **_get_cache_opts("l2", options)
+            clk_domain=system.cpu_clk_domain,
+            size=options.l2_size,
+            assoc=options.l2_assoc,
         )
 
         system.tol2bus = L2XBar(clk_domain=system.cpu_clk_domain)
         system.l2.cpu_side = system.tol2bus.mem_side_ports
         system.l2.mem_side = system.membus.cpu_side_ports
+        if options.l2_hwp_type:
+            hwpClass = ObjectList.hwp_list.get(options.l2_hwp_type)
+            if system.l2.prefetcher != "Null":
+                print(
+                    "Warning: l2-hwp-type is set (",
+                    hwpClass,
+                    "), but",
+                    "the current l2 has a default Hardware Prefetcher",
+                    "of type",
+                    type(system.l2.prefetcher),
+                    ", using the",
+                    "specified by the flag option.",
+                )
+            system.l2.prefetcher = hwpClass()
 
     if options.memchecker:
         system.memchecker = MemChecker()
@@ -147,13 +193,11 @@ def config_cache(options, system):
             icache = icache_class(**_get_cache_opts("l1i", options))
             dcache = dcache_class(**_get_cache_opts("l1d", options))
 
-            # If we are using ISA.X86 or ISA.RISCV, we set walker caches.
-            if ObjectList.cpu_list.get_isa(options.cpu_type) in [
-                ISA.RISCV,
-                ISA.X86,
-            ]:
-                iwalkcache = PageTableWalkerCache()
-                dwalkcache = PageTableWalkerCache()
+            # If we have a walker cache specified, instantiate two
+            # instances here
+            if walk_cache_class:
+                iwalkcache = walk_cache_class()
+                dwalkcache = walk_cache_class()
             else:
                 iwalkcache = None
                 dwalkcache = None
@@ -173,11 +217,55 @@ def config_cache(options, system):
                 # Let CPU connect to monitors
                 dcache = dcache_mon
 
+            if options.l1d_hwp_type:
+                hwpClass = ObjectList.hwp_list.get(options.l1d_hwp_type)
+                if dcache.prefetcher != m5.params.NULL:
+                    print(
+                        "Warning: l1d-hwp-type is set (",
+                        hwpClass,
+                        "), but",
+                        "the current l1d has a default Hardware Prefetcher",
+                        "of type",
+                        type(dcache.prefetcher),
+                        ", using the",
+                        "specified by the flag option.",
+                    )
+                dcache.prefetcher = hwpClass()
+
+            if options.l1i_hwp_type:
+                hwpClass = ObjectList.hwp_list.get(options.l1i_hwp_type)
+                if icache.prefetcher != m5.params.NULL:
+                    print(
+                        "Warning: l1i-hwp-type is set (",
+                        hwpClass,
+                        "), but",
+                        "the current l1i has a default Hardware Prefetcher",
+                        "of type",
+                        type(icache.prefetcher),
+                        ", using the",
+                        "specified by the flag option.",
+                    )
+                icache.prefetcher = hwpClass()
+
             # When connecting the caches, the clock is also inherited
             # from the CPU in question
-            system.cpu[i].addPrivateSplitL1Caches(
-                icache, dcache, iwalkcache, dwalkcache
-            )
+            # system.cpu[i].addPrivateSplitL1Caches(icache, dcache,
+            #                                      iwalkcache, dwalkcache)
+
+            if options.l3cache:
+                l2cache = l2_cache_class(
+                    size=options.l2_size, assoc=options.l2_assoc
+                )
+                #    system.cpu[i].tol2bus = L2XBar()
+                #    system.cpu[i].l2.cpu_side = system.cpu[i].tol2bus.master
+                #    system.cpu[i].l2.mem_side = system.tol3bus.slave
+                system.cpu[i].addTwoLevelCacheHierarchy(
+                    icache, dcache, l2cache, iwalkcache, dwalkcache
+                )
+            else:
+                system.cpu[i].addPrivateSplitL1Caches(
+                    icache, dcache, iwalkcache, dwalkcache
+                )
 
             if options.memchecker:
                 # The mem_side ports of the caches haven't been connected yet.
@@ -209,7 +297,14 @@ def config_cache(options, system):
                 )
 
         system.cpu[i].createInterruptController()
-        if options.l2cache:
+
+        if options.l3cache:
+            system.cpu[i].connectAllPorts(
+                system.tol3bus.cpu_side_ports,
+                system.membus.cpu_side_ports,
+                system.membus.mem_side_ports,
+            )
+        elif options.l2cache:
             system.cpu[i].connectAllPorts(
                 system.tol2bus.cpu_side_ports,
                 system.membus.cpu_side_ports,

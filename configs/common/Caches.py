@@ -69,13 +69,25 @@ class L1_DCache(L1Cache):
 
 
 class L2Cache(Cache):
-    assoc = 8
-    tag_latency = 20
-    data_latency = 20
-    response_latency = 20
+    assoc = 4
+    tag_latency = 8
+    data_latency = 8
+    response_latency = 12
     mshrs = 20
-    tgts_per_mshr = 12
+    tgts_per_mshr = 20
     write_buffers = 8
+    clusivity = "mostly_incl"
+
+
+class L3Cache(Cache):
+    assoc = 16
+    tag_latency = 32
+    data_latency = 32
+    response_latency = 32
+    mshrs = 512
+    tgts_per_mshr = 24
+    write_buffers = 256
+    clusivity = "mostly_incl"
 
 
 class IOCache(Cache):
